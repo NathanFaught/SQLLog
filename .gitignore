@@ -14,6 +14,7 @@ tmp/
 local.properties
 .classpath
 .settings/
+.packages/
 .loadpath
 
 # External tool builders
@@ -213,3 +214,5 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+/packages/Microsoft.SqlServer.Types.14.0.1016.290
+/SQLLog/SqlServerTypes

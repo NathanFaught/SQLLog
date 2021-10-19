@@ -1,13 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.IO;
 using System.Net;
 using System.Diagnostics;
 using System.Collections;
 using System.Data.SqlClient;
 using Procurios.Public;
+using System.Data;
+using Microsoft.SqlServer.Types;
+using System.Data.SqlTypes;
 
 namespace SQLLog
 {
@@ -390,11 +390,37 @@ namespace SQLLog
                 return -1;
             }
 
+            /*
+             *Creating store all records captured by JSON response in a Table object.  
+             *After the Table object is fully loaded, it will be bulk loaded into SQL
+            */
+            DataTable tbl = new DataTable();
+            tbl.Columns.Add(new DataColumn("type", typeof(string)));
+            tbl.Columns.Add(new DataColumn("message", typeof(string)));
+            tbl.Columns.Add(new DataColumn("time", typeof(DateTime)));
+            tbl.Columns.Add(new DataColumn("source", typeof(string)));
+            tbl.Columns.Add(new DataColumn("machine", typeof(string)));
+            tbl.Columns.Add(new DataColumn("username", typeof(string)));
+            tbl.Columns.Add(new DataColumn("code", typeof(double)));
+            tbl.Columns.Add(new DataColumn("elapsed", typeof(string)));
+            tbl.Columns.Add(new DataColumn("process", typeof(string)));
+            tbl.Columns.Add(new DataColumn("thread", typeof(string)));
+            tbl.Columns.Add(new DataColumn("methodname", typeof(string)));
+            tbl.Columns.Add(new DataColumn("mapsize_x", typeof(Int32)));
+            tbl.Columns.Add(new DataColumn("mapsize_y", typeof(Int32)));
+            tbl.Columns.Add(new DataColumn("mapscale", typeof(Double)));
+            tbl.Columns.Add(new DataColumn("mapextent_minx", typeof(Double)));
+            tbl.Columns.Add(new DataColumn("mapextent_miny", typeof(Double)));
+            tbl.Columns.Add(new DataColumn("mapextent_maxx", typeof(Double)));
+            tbl.Columns.Add(new DataColumn("mapextent_maxy", typeof(Double)));
+            tbl.Columns.Add(new DataColumn("Shape", typeof(SqlGeometry)));
+
             int n;
 
             for (n = 0; n < LogRecordsCount; n++)
             {
                 Hashtable LogRecord = (Hashtable)LogRecords[n];
+                System.Data.DataRow dr = tbl.NewRow();
 
                 string type = (string)LogRecord["type"];
                 string message = (string)LogRecord["message"];
@@ -418,18 +444,35 @@ namespace SQLLog
                 string maxx = "NULL";
                 string maxy = "NULL";
 
-                string Shape = "NULL";
+                string polygon;
 
                 DateTime dttime = UnixTimeStampToDateTime2(dtime);
+                dttime = (dttime.ToLocalTime());
 
-                dttime = dttime.ToLocalTime();
-
-                long lcode = (long)code;
-
+                // Data must be truncated to the maximum length of the SQL columns before SQLBulkCopy executes
+                if (type.Length > 50) type = type.Substring(0, 50);
                 if (message.Length > 4000) message = message.Substring(0, 4000);
+                if (source.Length > 100) source = source.Substring(0, 100);
+                if (machine.Length > 50) machine = machine.Substring(0, 50);
+                if (user.Length > 50) user = user.Substring(0, 50);
+                if (elapsed.Length > 50) elapsed = elapsed.Substring(0, 50);
+                if (process.Length > 50) process = process.Substring(0, 50);
+                if (thread.Length > 50) thread = thread.Substring(0, 50);
                 if (methodName.Length > 50) methodName = methodName.Substring(0, 50);
 
                 message = message.Replace("'", "''");
+
+                dr["type"] = type;
+                dr["message"] = message;
+                dr["time"] = dttime;
+                dr["source"] = source;
+                dr["machine"] = machine;
+                dr["username"] = user;
+                dr["code"] = code;
+                dr["elapsed"] = elapsed;
+                dr["process"] = process;
+                dr["thread"] = thread;
+                dr["methodname"] = methodName;
 
                 if (message.Contains("Extent:"))
                 {
@@ -448,6 +491,10 @@ namespace SQLLog
                     size_x = tmp_sizes[0];
                     size_y = tmp_sizes[1];
 
+                    dr["mapsize_x"] = Int32.Parse(size_x);
+                    dr["mapsize_y"] = Int32.Parse(size_y);
+                    dr["mapscale"] = Double.Parse(scale);
+
                     if (tmp_extent_all.ToUpper().Contains("NAN") == false)
                     {
                         minx = tmp_extents[0];
@@ -455,80 +502,85 @@ namespace SQLLog
                         maxx = tmp_extents[2];
                         maxy = tmp_extents[3];
 
-                        Shape = "'POLYGON((" + minx + " " + miny + "," + minx + " " + maxy + "," + maxx + " " + maxy + "," + maxx + " " + miny + "," + minx + " " + miny + "))'";
+                        dr["mapextent_minx"] = Double.Parse(minx);
+                        dr["mapextent_miny"] = Double.Parse(miny);
+                        dr["mapextent_maxx"] = Double.Parse(maxx);
+                        dr["mapextent_maxy"] = Double.Parse(maxy);
 
-                        Shape = "geometry::STPolyFromText(" + Shape + ", " + srid + ")";
+                        // Commented out Shape column to save space.
+
+                        polygon = "POLYGON((" + minx + " " + miny + "," + minx + " " + maxy + "," + maxx + " " + maxy + "," + maxx + " " + miny + "," + minx + " " + miny + "))";
+                        dr["Shape"] = SqlGeometry.STPolyFromText(new SqlChars(new SqlString(polygon)), Int32.Parse(srid));
+                    }
+                    else
+                    {
+                        dr["mapextent_minx"] = DBNull.Value;
+                        dr["mapextent_miny"] = DBNull.Value;
+                        dr["mapextent_maxx"] = DBNull.Value;
+                        dr["mapextent_maxy"] = DBNull.Value;
+                        dr["Shape"] = DBNull.Value;
                     }
                 }
-
-                string sql = "";
-
-                sql = sql + "INSERT INTO [" + dbname + "].[" + dbschema + "].[RawLogs]";
-                sql = sql + "([type]";
-                sql = sql + ",[message]";
-                sql = sql + ",[time]";
-                sql = sql + ",[source]";
-                sql = sql + ",[machine]";
-                sql = sql + ",[username]";
-                sql = sql + ",[code]";
-                sql = sql + ",[elapsed]";
-                sql = sql + ",[process]";
-                sql = sql + ",[thread]";
-                sql = sql + ",[methodname]";
-                sql = sql + ",[mapsize_x]";
-                sql = sql + ",[mapsize_y]";
-                sql = sql + ",[mapscale]";
-                sql = sql + ",[mapextent_minx]";
-                sql = sql + ",[mapextent_miny]";
-                sql = sql + ",[mapextent_maxx]";
-                sql = sql + ",[mapextent_maxy]";
-                sql = sql + ",[Shape])";
-                sql = sql + "VALUES";
-                sql = sql + "(";
-                sql = sql + "'" + type + "',";
-                sql = sql + "'" + message + "',";
-                sql = sql + "'" + dttime.ToString("yyyy-MM-ddTHH:mm:ss.fff") + "',";
-                sql = sql + "'" + source + "',";
-                sql = sql + "'" + machine + "',";
-                sql = sql + "'" + user + "',";
-                sql = sql + code + ",";
-                sql = sql + "'" + elapsed + "',";
-                sql = sql + "'" + process + "',";
-                sql = sql + "'" + thread + "',";
-                sql = sql + "'" + methodName + "',";
-                sql = sql + "" + size_x + ",";
-                sql = sql + "" + size_y + ",";
-                sql = sql + "" + scale + ",";
-                sql = sql + "" + minx + ",";
-                sql = sql + "" + miny + ",";
-                sql = sql + "" + maxx + ",";
-                sql = sql + "" + maxy + ",";
-                sql = sql + Shape;
-                sql = sql + ")";
-
-                SqlCommand myUserCommand = new SqlCommand(sql, myConnection);
-
-                try
+                else
                 {
-                    myUserCommand.ExecuteNonQuery();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Could not execute SQL statement");
-                    Console.WriteLine(e.ToString());
-                    Console.WriteLine("Last SQL statement");
-                    Console.WriteLine(sql);
-
-                    myConnection.Close();
-
-                    return -1;
+                    dr["mapsize_x"] = DBNull.Value;
+                    dr["mapsize_y"] = DBNull.Value;
+                    dr["mapscale"] = DBNull.Value;
+                    dr["mapextent_minx"] = DBNull.Value;
+                    dr["mapextent_miny"] = DBNull.Value;
+                    dr["mapextent_maxx"] = DBNull.Value;
+                    dr["mapextent_maxy"] = DBNull.Value;
+                    dr["Shape"] = DBNull.Value;
                 }
 
-                if (debug == true) Console.WriteLine("Inserted record " + (n+1).ToString());
+                tbl.Rows.Add(dr);
+
+            }
+            //Finished adding rows the DataTable, attempting to bulk insert now.
+            //Performing bulk insert to save time as inserting 1 record takes as much SQL time as inserting 10,000 records
+            //Clock testing of original version (1 insert per loop) - 35 seconds for 2000 records
+            //Clock testing of updated  version (pagesize inserts per loop) - 12 seconds for 10000 records
+            try
+            {
+                SqlBulkCopy objbulk = new SqlBulkCopy(myConnection);
+                objbulk.DestinationTableName = dbschema + ".RawLogs";
+
+                objbulk.ColumnMappings.Add("type", "type");
+                objbulk.ColumnMappings.Add("message", "message");
+                objbulk.ColumnMappings.Add("time", "time");
+                objbulk.ColumnMappings.Add("source", "source");
+                objbulk.ColumnMappings.Add("machine", "machine");
+                objbulk.ColumnMappings.Add("username", "username");
+                objbulk.ColumnMappings.Add("code", "code");
+                objbulk.ColumnMappings.Add("elapsed", "elapsed");
+                objbulk.ColumnMappings.Add("process", "process");
+                objbulk.ColumnMappings.Add("thread", "thread");
+                objbulk.ColumnMappings.Add("methodName", "methodname");
+                objbulk.ColumnMappings.Add("mapsize_x", "mapsize_x");
+                objbulk.ColumnMappings.Add("mapsize_y", "mapsize_y");
+                objbulk.ColumnMappings.Add("mapscale", "mapscale");
+                objbulk.ColumnMappings.Add("mapextent_minx", "mapextent_minx");
+                objbulk.ColumnMappings.Add("mapextent_miny", "mapextent_miny");
+                objbulk.ColumnMappings.Add("mapextent_maxx", "mapextent_maxx");
+                objbulk.ColumnMappings.Add("mapextent_maxy", "mapextent_maxy");
+                objbulk.ColumnMappings.Add("Shape", "Shape");
+
+                objbulk.WriteToServer(tbl);
+
+                myConnection.Close();
+                tbl.Clear();
+
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Could not execute SQL statement");
+                Console.WriteLine(e.ToString());
+                myConnection.Close();
+                tbl.Clear();
+                return -1;
             }
 
-            myConnection.Close();
-
+            if (debug == true) Console.WriteLine("Inserted records " + LogRecordsCount.ToString());
             return n;
         }
 
