@@ -240,7 +240,7 @@ namespace SQLLog
                     {
                         if (debug == true) Console.WriteLine("Token expired, get a new one.");
                         if (debug == true) Console.WriteLine("Old token=" + Token);
-                        Token = GetToken(TTokenURL, TUser, TPassword);
+                        Token = GetToken2(TTokenURL, TUser, TPassword);
                         if (debug == true) Console.WriteLine("New token=" + Token);
                     }
 
