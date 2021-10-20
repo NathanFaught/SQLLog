@@ -22,6 +22,7 @@ namespace SQLLog
 
             var MyIni = new IniFile();
             string slastrun = MyIni.Read("LastRun");
+            string sprevendtime = MyIni.Read("PrevEndTime");
 
             //if (slastrun == "") slastrun = "0";
 
@@ -188,7 +189,8 @@ namespace SQLLog
             Stopwatch sw = Stopwatch.StartNew();
 
             bool hasMore = true;
-            double prevEndTime = 0;
+            //double prevEndTime = 0;
+            double prevEndTime = Double.Parse(sprevendtime);
             int requests = 0;
 
             while (hasMore == true)
@@ -268,6 +270,10 @@ namespace SQLLog
                     root = (Hashtable)Procurios.Public.JSON.JsonDecode(response);
                     hasMore = (bool)root["hasMore"];
                     if (hasMore == true) prevEndTime = (double)root["endTime"];
+
+                    //PrevEndTime allows the program to restart where it left off in the event of program failure..
+                    MyIni.Write("PrevEndTime", prevEndTime.ToString());
+
                 }
                 catch (WebException webEx)
                 {
@@ -304,7 +310,16 @@ namespace SQLLog
                 }
             }
 
+            /* 
+             * After successful completion, update 
+             * LastRun = program start DateTime 
+             * PrevEndTime = 0
+             * 
+             * Note, if PrevEndTime has a value other than zero, it indicates the program is currently running or the program failed.
+             * PrevEndTime allows the program to restart where it left off.
+             */
             MyIni.Write("LastRun", sthisrun);
+            MyIni.Write("PrevEndTime", "0");
 
             Console.WriteLine("Done!");
         }
