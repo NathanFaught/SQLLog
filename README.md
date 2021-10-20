@@ -21,7 +21,7 @@ along with this program.  If not, see http://www.gnu.org/licenses
 
 This is a command line tool used to "redirect" ArcGIS for Server logging to SQL Server for permanent storage and further analysis. The "redirect" is actually a parsing of the new ArcGIS for Server logs API for 10.1/10.2.
 
-The tool will query the logs using the REST API and push rows to a SQL Server 2008 (or newer) database. From the database you can then analyse the log data and generate reports on things like map statistics. The create table script is included in the zip file.
+The tool will query the logs using the REST API and push rows to a SQL Server 2008 (or newer) database. From the database you can then analyze the log data and generate reports on things like map statistics. The create table script is included in the zip file.
 
 The idea is to set the tool up using the Windows Task Scheduler and have it run every 24 hours. This will then build up a picture of whats happening on your server.
 
@@ -41,7 +41,7 @@ The tool takes several input which are listed below;
 
 -password = Password of user that can query the logs eg spat1al 
 
--tokenurl = URL of REST toen service eg http://localhost:6080/arcgis/tokens 
+-tokenurl = URL of REST token service eg http://localhost:6080/arcgis/tokens 
 
 -cleanlogs = Set to "Y" to clear out logs eg Y 
 
@@ -60,4 +60,11 @@ The tool takes several input which are listed below;
 -srid = Spatial Reference ID for features eg 2193
 
 -incremental = Runs in incremental mode set to "Y" to use
+
+## Notes
+
+1. I do not recommend the use of cleanlogs as it does not utilize a date range, it simply clears all logs (this is a limitation of the arcgis endpoint). In the scenario where the log import takes 1 hour to complete (and cleanlogs=Y), the logs will be purged at the end of execution, effectively purging all successfully imported logs and the 1 hour of logs that have accumulated during the log import execution. 
  
+2. Logs are imported in descending order starting with the moment of execution (of SQLLog.exe) and ending at the date specified by LastRun (SQLLog.ini in unix epoch time)
+
+3. In order to include the Geometry data type as part of the SQLBulkCopy execution, additional external DLLs are required (should be placed in the same directory as SQLLog.exe). In my case, I'm using msvcr120.dll and SqlServerSpatial140.dll (x86 for both versions).
