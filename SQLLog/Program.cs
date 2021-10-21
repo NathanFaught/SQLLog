@@ -22,12 +22,35 @@ namespace SQLLog
 
             var MyIni = new IniFile();
             string slastrun = MyIni.Read("LastRun");
+            string sthisruntemp = MyIni.Read("ThisRunTemp");
             string sprevendtime = MyIni.Read("PrevEndTime");
 
-            //if (slastrun == "") slastrun = "0";
+            // Check for the existing of both temp values and initalize if missing.
+            if (sthisruntemp == "") {
+                MyIni.Write("ThisRunTemp", "0");
+                sthisruntemp = "0";
+            }
+            if (sprevendtime == "") 
+            { 
+                MyIni.Write("PrevEndTime", "0");
+                sprevendtime = "0";
+            }
 
             double dthisrun = (DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalMilliseconds;
             dthisrun = Math.Truncate(dthisrun);
+
+            // If sthisruntemp != 0, assume the previous execution failed.  Restarting app using the same dthisrun value as last time.
+            // this is necessary to allow restarting without causing the import app to skip logs from previous exeuction to now.
+            if (sthisruntemp != "0")
+            { 
+                // Overwriting dthisrun as the previous execution failed.
+                dthisrun = Double.Parse(sthisruntemp); 
+            }
+            else 
+            {
+                // if sthisruntemp, then set to dthisrun.  Upon successful execution of the program, this INI value will be set back to 0.
+                MyIni.Write("ThisRunTemp", dthisrun.ToString()); 
+            }
 
             string sthisrun = dthisrun.ToString();
             sthisrun = sthisrun.Substring(0, sthisrun.Length);
@@ -319,6 +342,7 @@ namespace SQLLog
              * PrevEndTime allows the program to restart where it left off.
              */
             MyIni.Write("LastRun", sthisrun);
+            MyIni.Write("ThisRunTemp", "0");
             MyIni.Write("PrevEndTime", "0");
 
             Console.WriteLine("Done!");
