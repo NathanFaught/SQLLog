@@ -337,6 +337,7 @@ namespace SQLLog
              * After successful completion, update 
              * LastRun = program start DateTime 
              * PrevEndTime = 0
+             * ThisRunTemp = 0
              * 
              * Note, if PrevEndTime has a value other than zero, it indicates the program is currently running or the program failed.
              * PrevEndTime allows the program to restart where it left off.
