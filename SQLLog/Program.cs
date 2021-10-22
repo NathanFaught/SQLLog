@@ -256,7 +256,7 @@ namespace SQLLog
                 imgurl = imgurl + "&filter=" + Tfilter; //"{\"server\": \"*\", \"services\": \"*\", \"machines\":\"*\" }";
 
                 imgurl = imgurl + "&pageSize=" + Tpagesize;
-                imgurl = imgurl + "&f=pjson";                
+                imgurl = imgurl + "&f=json";                
 
                 if (Token != "")
                 {
