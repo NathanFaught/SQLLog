@@ -38,7 +38,7 @@ SELECT [source] = SUBSTRING([source],1,charindex('/', [source])-1)
 	,[MaxTime]=MAX([elapsed])
 	,[AvgTime]=AVG(CAST([elapsed] AS NUMERIC(38,4)))
 	,[TotalTime]=(SUM(CAST([elapsed] AS NUMERIC(38,4))))
-FROM gis.RawLogs
+FROM sdeadmin.RawLogs
 WHERE 1=1
 	--AND source = 'Basemap.MapServer'
 	AND code = 10011.00000000
@@ -53,7 +53,7 @@ SELECT [source]
 	,[MaxTime]=MAX([elapsed])
 	,[AvgTime]=AVG(CAST([elapsed] AS NUMERIC(38,4)))
 	,[TotalTime]=(SUM(CAST([elapsed] AS NUMERIC(38,4))))
-FROM gis.RawLogs
+FROM sdeadmin.RawLogs
 WHERE 1=1
 	--AND source = 'Basemap.MapServer'
 	AND code = 10011.00000000
@@ -70,7 +70,7 @@ SELECT [source]
 	,[MaxTime]=MAX([elapsed])
 	,[AvgTime]=AVG(CAST([elapsed] AS NUMERIC(38,4)))
 	,[TotalTime]=(SUM(CAST([elapsed] AS NUMERIC(38,4))))
-FROM gis.RawLogs
+FROM sdeadmin.RawLogs
 WHERE 1=1
 	--AND source = 'Basemap.MapServer'
 	AND [code] = 10011.00000000
@@ -86,9 +86,17 @@ SELECT [source]
 	,[MaxTime]=MAX([elapsed])
 	,[AvgTime]=AVG(CAST([elapsed] AS NUMERIC(38,4)))
 	,[TotalTime]=(SUM(CAST([elapsed] AS NUMERIC(38,4))))
-FROM gis.RawLogs
+FROM sdeadmin.RawLogs
 WHERE 1=1
 	--AND source = 'Basemap.MapServer'
 	AND code = 10011.00000000
 GROUP BY [source], CAST(DATEPART(year, [time]) as VARCHAR) + '-' + CAST(DATEPART(week, [time]) AS VARCHAR)
 ORDER BY [source] ASC, [Date] DESC
+
+--Purge query, to clean out old logs (greater than 40 days)
+--This will NOT purge code 10011. 10011 is the code all of our reports are based on.
+--You may want to purge cod 10011 after 1 or 2 years, depending on storage and need.
+DELETE FROM [sdeadmin].[RawLogs] 
+WHERE 1=1
+AND (code <> 10011.00000000 OR code IS NULL)
+AND [time] < GETDATE()-40
