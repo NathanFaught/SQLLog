@@ -388,6 +388,7 @@ namespace SQLLog
             return true;
         }
 
+
         public static int ProcessResponse(string response, string dbuser, string dbpassword, string dbname, string dbserver, string dbschema, bool debug, string srid)
         {
             Hashtable root;
@@ -408,26 +409,15 @@ namespace SQLLog
 
             if (debug == true) Console.WriteLine("Retrieved " + LogRecordsCount.ToString() + " records");
 
-            SqlConnection myConnection;
-
+            
+            string connection_string;
             if (dbuser != "")
             {
-                myConnection = new SqlConnection("Server=" + dbserver + "; Database=" + dbname + "; User ID=" + dbuser + "; Password=" + dbpassword);
+                connection_string = "Server = " + dbserver + "; Database = " + dbname + "; User ID = " + dbuser + "; Password = " + dbpassword;
             }
             else
             {
-                myConnection = new SqlConnection("Server=" + dbserver + "; Database=" + dbname + ";Integrated Security=true");
-            }
-
-            try
-            {
-                myConnection.Open();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("Could not open up SQL Connection");
-                if (debug == true) Console.WriteLine(e.ToString());
-                return -1;
+                connection_string = "Server=" + dbserver + "; Database=" + dbname + ";Integrated Security=true";
             }
 
             /*
@@ -576,49 +566,66 @@ namespace SQLLog
                 tbl.Rows.Add(dr);
 
             }
-            //Finished adding rows the DataTable, attempting to bulk insert now.
-            //Performing bulk insert to save time as inserting 1 record takes as much SQL time as inserting 10,000 records
-            //Clock testing of original version (1 insert per loop) - 35 seconds for 2000 records
-            //Clock testing of updated  version (pagesize inserts per loop) - 12 seconds for 10000 records
-            try
+
+            using (SqlConnection connection = new SqlConnection(connection_string))
             {
-                SqlBulkCopy objbulk = new SqlBulkCopy(myConnection);
-                objbulk.DestinationTableName = dbschema + ".RawLogs";
+                //Finished adding rows the DataTable, attempting to bulk insert now.
+                //Performing bulk insert to save time as inserting 1 record takes as much SQL time as inserting 10,000 records
+                //Clock testing of original version (1 insert per loop) - 35 seconds for 2000 records
+                //Clock testing of updated  version (pagesize inserts per loop) - 12 seconds for 10000 records
+                using (SqlBulkCopy objbulk = new SqlBulkCopy(connection))
+                {
+                    try
+                    {
+                        connection.Open();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Could not open up SQL Connection");
+                        if (debug == true) Console.WriteLine(e.ToString());
+                        return -1;
+                    }
 
-                objbulk.ColumnMappings.Add("type", "type");
-                objbulk.ColumnMappings.Add("message", "message");
-                objbulk.ColumnMappings.Add("time", "time");
-                objbulk.ColumnMappings.Add("source", "source");
-                objbulk.ColumnMappings.Add("machine", "machine");
-                objbulk.ColumnMappings.Add("username", "username");
-                objbulk.ColumnMappings.Add("code", "code");
-                objbulk.ColumnMappings.Add("elapsed", "elapsed");
-                objbulk.ColumnMappings.Add("process", "process");
-                objbulk.ColumnMappings.Add("thread", "thread");
-                objbulk.ColumnMappings.Add("methodName", "methodname");
-                objbulk.ColumnMappings.Add("mapsize_x", "mapsize_x");
-                objbulk.ColumnMappings.Add("mapsize_y", "mapsize_y");
-                objbulk.ColumnMappings.Add("mapscale", "mapscale");
-                objbulk.ColumnMappings.Add("mapextent_minx", "mapextent_minx");
-                objbulk.ColumnMappings.Add("mapextent_miny", "mapextent_miny");
-                objbulk.ColumnMappings.Add("mapextent_maxx", "mapextent_maxx");
-                objbulk.ColumnMappings.Add("mapextent_maxy", "mapextent_maxy");
-                objbulk.ColumnMappings.Add("Shape", "Shape");
+                    try
+                    {
+                        objbulk.DestinationTableName = dbschema + ".RawLogs";
 
-                objbulk.WriteToServer(tbl);
+                        objbulk.ColumnMappings.Add("type", "type");
+                        objbulk.ColumnMappings.Add("message", "message");
+                        objbulk.ColumnMappings.Add("time", "time");
+                        objbulk.ColumnMappings.Add("source", "source");
+                        objbulk.ColumnMappings.Add("machine", "machine");
+                        objbulk.ColumnMappings.Add("username", "username");
+                        objbulk.ColumnMappings.Add("code", "code");
+                        objbulk.ColumnMappings.Add("elapsed", "elapsed");
+                        objbulk.ColumnMappings.Add("process", "process");
+                        objbulk.ColumnMappings.Add("thread", "thread");
+                        objbulk.ColumnMappings.Add("methodName", "methodname");
+                        objbulk.ColumnMappings.Add("mapsize_x", "mapsize_x");
+                        objbulk.ColumnMappings.Add("mapsize_y", "mapsize_y");
+                        objbulk.ColumnMappings.Add("mapscale", "mapscale");
+                        objbulk.ColumnMappings.Add("mapextent_minx", "mapextent_minx");
+                        objbulk.ColumnMappings.Add("mapextent_miny", "mapextent_miny");
+                        objbulk.ColumnMappings.Add("mapextent_maxx", "mapextent_maxx");
+                        objbulk.ColumnMappings.Add("mapextent_maxy", "mapextent_maxy");
+                        objbulk.ColumnMappings.Add("Shape", "Shape");
+                        objbulk.WriteToServer(tbl);
 
-                myConnection.Close();
-                tbl.Clear();
-
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Could not execute SQL statement");
+                        Console.WriteLine(e.ToString());
+                        return -1;
+                    }
+                    finally
+                    {
+                        tbl.Clear();
+                    }
+                }
             }
-            catch (Exception e)
-            {
-                Console.WriteLine("Could not execute SQL statement");
-                Console.WriteLine(e.ToString());
-                myConnection.Close();
-                tbl.Clear();
-                return -1;
-            }
+
+ 
 
             if (debug == true) Console.WriteLine("Inserted records " + LogRecordsCount.ToString());
             return n;
